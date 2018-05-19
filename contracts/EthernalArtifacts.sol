@@ -16,7 +16,7 @@ contract EthernalArtifacts is EthernalAccessControl{
         bool isSellable;
     }
 
-    
+
     // Storages
 
     /// @dev All ingame artifacts. Artifact's ID is
@@ -30,12 +30,15 @@ contract EthernalArtifacts is EthernalAccessControl{
     mapping (address => uint256) public ownershipTokenCount;
 
     /// @dev A mapping from artifact ID to an approved adress for transer
-    /// Zero means there's no approval  
+    /// Zero means there's no approval
     mapping (uint256 => address) public artifactIndexToApproved;
+
+    /// @dev A mapping showing if user payed for artifact creation
+    mapping(address => bool) public creationFee;
 
 
     // Functions
-    
+
     /// @dev Transers artifact ownership between accounts
     function _transfer(address _from, address _to, uint256 _tokenId) internal whenNotPaused{
         ownershipTokenCount[_to]++;
@@ -60,9 +63,11 @@ contract EthernalArtifacts is EthernalAccessControl{
     /// @param _owner Artifact owner
     function createArtifact (
         uint16 _typeId, uint32 _maxAmount, bool _isSellable, address _owner
-    ) 
+    )
         public onlyGameserver returns (uint)
     {
+        // Requires that user paid for creation
+        require(creationFee[_owner] == true);
         // Creating new artifact object
         Artifact memory _artifact = Artifact({
             maxAmount: uint32(_maxAmount),
@@ -79,6 +84,9 @@ contract EthernalArtifacts is EthernalAccessControl{
         // Transfering to the owner
         _transfer(gameserverAddress, _owner, _newArtifactId);
 
+        // Updating creation payment
+        creationFee[_owner] = false;
+
         return _newArtifactId;
     }
 
@@ -88,9 +96,22 @@ contract EthernalArtifacts is EthernalAccessControl{
         return artifacts.length;
     }
 
+    /// @dev User has to pay for creation of artifact
+    function payForArtifact() public payable{
+        require(msg.value == 0.00125 ether);
+        require(creationFee[msg.sender] == false);
+        creationFee[msg.sender] = true;
+        emit PayedCreation(msg.sender);
+    }
+
 
     // Events
 
     /// @dev Transfer event as defined in current ERC721 template
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+
+    /// @dev User paying for item creation event
+    event PayedCreation(address payer);
+
+    // TODO: update tests
 }
